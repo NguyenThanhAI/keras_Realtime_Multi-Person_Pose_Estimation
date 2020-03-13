@@ -17,3 +17,5 @@ logs/
 training.csv
 weights.best.h5
 *.png
+*.jpg
+*.jpeg

@@ -204,6 +204,9 @@ def draw(input_image, all_peaks, subset, candidate, resize_fac=1):
             a = all_peaks[i][j][0] * resize_fac
             b = all_peaks[i][j][1] * resize_fac
             cv2.circle(canvas, (a, b), 2, util.colors[i], thickness=-1)
+            #print(i, j)
+            #cv2.imshow("canvas", canvas)
+            #cv2.waitKey(0)
 
     stickwidth = 4
 
@@ -215,6 +218,7 @@ def draw(input_image, all_peaks, subset, candidate, resize_fac=1):
             cur_canvas = canvas.copy()
             y = candidate[index.astype(int), 0]
             x = candidate[index.astype(int), 1]
+            print("i:", i, "np.array(util.limbSeq[i])-1:", np.array(util.limbSeq[i]) - 1, "index:", index, "y:", y, "x:", x)
             m_x = np.mean(x)
             m_y = np.mean(y)
             length = ((x[0] - x[1]) ** 2 + (y[0] - y[1]) ** 2) ** 0.5
@@ -223,5 +227,7 @@ def draw(input_image, all_peaks, subset, candidate, resize_fac=1):
                                        (int(length * resize_fac / 2), stickwidth), int(angle), 0, 360, 1)
             cv2.fillConvexPoly(cur_canvas, polygon, util.colors[i])
             canvas = cv2.addWeighted(canvas, 0.4, cur_canvas, 0.6, 0)
+            #cv2.imshow("canvas", canvas)
+            #cv2.waitKey(0)
 
     return canvas
