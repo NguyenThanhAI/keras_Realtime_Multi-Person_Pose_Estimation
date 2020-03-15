@@ -19,3 +19,5 @@ weights.best.h5
 *.png
 *.jpg
 *.jpeg
+*.json
+*.txt

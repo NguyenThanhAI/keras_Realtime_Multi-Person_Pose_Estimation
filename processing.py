@@ -218,7 +218,7 @@ def draw(input_image, all_peaks, subset, candidate, resize_fac=1):
             cur_canvas = canvas.copy()
             y = candidate[index.astype(int), 0]
             x = candidate[index.astype(int), 1]
-            print("i:", i, "np.array(util.limbSeq[i])-1:", np.array(util.limbSeq[i]) - 1, "index:", index, "y:", y, "x:", x)
+            #print("i:", i, "np.array(util.limbSeq[i])-1:", np.array(util.limbSeq[i]) - 1, "index:", index, "y:", y, "x:", x)
             m_x = np.mean(x)
             m_y = np.mean(y)
             length = ((x[0] - x[1]) ** 2 + (y[0] - y[1]) ** 2) ** 0.5
