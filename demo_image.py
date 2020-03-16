@@ -39,6 +39,7 @@ if __name__ == '__main__':
     params, model_params = config_reader()
     
     input_image = cv2.imread(image_path)  # B,G,R order
+    height, width = input_image.shape[:2]
     
     body_parts, all_peaks, subset, candidate = extract_parts(input_image, params, model, model_params)
     #print("body_parts:", body_parts, "all_peaks:", len(all_peaks), "subset:", subset, "candidate:", candidate)
@@ -71,7 +72,7 @@ if __name__ == '__main__':
             y = int(candidate[point.astype(int), 1])
             cv2.circle(draw_image, (x, y), 3, color, thickness=-1)
             print(label_to_keypoint[i])
-            results["person_" + str(j)][label_to_keypoint[i]] = {"x": x, "y": y}
+            results["person_" + str(j)][label_to_keypoint[i]] = {"x": round((x + 1) / width, 3), "y": round((y + 1) / height, 3)}
             #cv2.imshow("draw_img", draw_image)
             #cv2.waitKey(0)
     with open(os.path.basename(image_path).split(".")[0] + ".json", "w+") as f:

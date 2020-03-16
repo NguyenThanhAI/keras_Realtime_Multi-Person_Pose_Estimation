@@ -15,14 +15,14 @@ from model.cmu_model import get_testing_model
 def get_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--dataset_dir", type=str, required=True, help="Path to dataset")
-    parser.add_argument("--output_dir", type=str, required=True, help="Path to save json files")
+    parser.add_argument("--dataset_dir", type=str, default=r"D:\MMAct\videos", help="Path to dataset")
+    parser.add_argument("--output_dir", type=str, default=r"D:\MMAct_annotator", help="Path to save json files")
     parser.add_argument('--model', type=str, default='model/keras/model.h5', help='path to the weights file')
-    parser.add_argument("--run_format", type=str, choices=("videos", "images"))
+    parser.add_argument("--run_format", type=str, choices=("videos", "images"), default="videos")
 
     args  = parser.parse_args()
 
-    return
+    return args
 
 
 def diff_list(li1, li2):
@@ -93,7 +93,7 @@ if __name__ == '__main__':
                 content = content.split("\n")
                 content = list(filter(None, content))
 
-                assert  len(content) == 1
+                assert len(content) == 1
 
                 start_index = videos_list.index(content[0])
 
@@ -113,7 +113,7 @@ if __name__ == '__main__':
 
             frames = mmcv.VideoReader(video)
 
-            for i, frame in enumerate(frames):
+            for j, frame in enumerate(frames):
 
                 with open("file.txt", "w") as f:
                     f.write(video + "\n")
@@ -123,9 +123,11 @@ if __name__ == '__main__':
 
                 body_parts, all_peaks, subset, candidate = extract_parts(frame_bgr, params, model, model_params)
 
-                for person in subset:
-                    for j, point in enumerate(person):
-                        if i == 18:
+                canvas = draw(frame, all_peaks, subset, candidate)
+
+                for k, person in enumerate(subset):
+                    for h, point in enumerate(person):
+                        if h == 18:
                             break
 
                         if point == -1.:
@@ -134,6 +136,10 @@ if __name__ == '__main__':
                         x = int(candidate[point.astype(int), 0])
                         y = int(candidate[point.astype(int), 1])
                         prob = candidate[point.astype(int), 2]
+
+                cv2.imshow("canvas", canvas)
+                cv2.waitKey(2000)
+                cv2.destroyWindow("canvas")
 
     else:
         videos_dict = enumerate_videos_folder(args)
@@ -147,7 +153,7 @@ if __name__ == '__main__':
                 content = content.split("\n")
                 content = list(filter(None, content))
 
-                assert  len(content) == 1
+                assert len(content) == 1
 
                 start_index = videos_dict.index(content[0])
 
@@ -178,9 +184,9 @@ if __name__ == '__main__':
 
                 body_parts, all_peaks, subset, candidate = extract_parts(img_bgr, params, model, model_params)
 
-                for person in subset:
-                    for j, point in enumerate(person):
-                        if i == 18:
+                for k, person in enumerate(subset):
+                    for h, point in enumerate(person):
+                        if h == 18:
                             break
 
                         if point == -1.:
@@ -189,4 +195,3 @@ if __name__ == '__main__':
                         x = int(candidate[point.astype(int), 0])
                         y = int(candidate[point.astype(int), 1])
                         prob = candidate[point.astype(int), 2]
-
