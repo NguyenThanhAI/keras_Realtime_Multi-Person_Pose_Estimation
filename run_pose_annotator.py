@@ -82,7 +82,7 @@ if __name__ == '__main__':
     # load config
     params, model_params = config_reader()
 
-    dataset_dir_compose = args.dataset_dir.split(os.sep)
+    dataset_dir_compose = list(filter(None, args.dataset_dir.split(os.sep)))
 
     if args.run_format == "videos":
         videos_list =  enumerate_videos(args)
@@ -107,7 +107,7 @@ if __name__ == '__main__':
 
             json_filename = os.path.basename(video).split(".")[0] + ".json"
 
-            dirname_compose = os.path.dirname(video).split(os.sep)
+            dirname_compose = list(filter(None, os.path.dirname(video).split(os.sep)))
             relative_dirname = os.path.join(*diff_list(dirname_compose, dataset_dir_compose))
             out_dirname = os.path.join(args.output_dir, relative_dirname)
             #print(dirname_compose, relative_dirname, out_dirname)
