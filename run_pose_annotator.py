@@ -104,9 +104,9 @@ if __name__ == '__main__':
         #print(start_index)
         for i in tqdm(range(start_index, len(videos_list))):
             video = videos_list[i]
-            print("Video ", i)
+            #print("Video ", i)
             json_filename = os.path.basename(video).split(".")[0] + ".json"
-            print(json_filename)
+            #print(json_filename)
             dirname_compose = os.path.dirname(video).split(os.sep)
             relative_dirname = os.path.join(*diff_list(dirname_compose, dataset_dir_compose))
             out_dirname = os.path.join(args.output_dir, relative_dirname)
@@ -122,13 +122,13 @@ if __name__ == '__main__':
                 f.close()
             video_info = {}
             for j, frame in enumerate(frames):
-                print("frame ", j, len(frames))
+                #print("frame ", j, len(frames))
                 height, width = frame.shape[:2]
                 frame_bgr = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
                 body_parts, all_peaks, subset, candidate = extract_parts(frame_bgr, params, model, model_params)
 
-                canvas = draw(frame, all_peaks, subset, candidate)
+                #canvas = draw(frame, all_peaks, subset, candidate)
 
                 frame_info = {}
                 for k, person in enumerate(subset):
@@ -153,7 +153,7 @@ if __name__ == '__main__':
                 #    json.dump(video_info, f, indent=4)
 #
                 #cv2.imshow("canvas", canvas)
-                cv2.imwrite("image_to_vide/image" + str(j).zfill(5) + ".jpg", canvas)
+                #cv2.imwrite("image_to_vide/image" + str(j).zfill(5) + ".jpg", canvas)
                 #cv2.waitKey(2000)
                 #cv2.destroyWindow("canvas")
 
@@ -211,7 +211,7 @@ if __name__ == '__main__':
 
                 body_parts, all_peaks, subset, candidate = extract_parts(img_bgr, params, model, model_params)
 
-                canvas = draw(img, all_peaks, subset, candidate)
+                #canvas = draw(img, all_peaks, subset, candidate)
                 frame_info = {}
                 for k, person in enumerate(subset):
                     frame_info["person_" + str(k).zfill(2)] = {}
