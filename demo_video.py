@@ -66,7 +66,7 @@ if __name__ == '__main__':
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(video_output, fourcc, output_fps, (orig_image.shape[1], orig_image.shape[0]))
 
-    scale_search = [1, .5, 1.5, 2]  # [.5, 1, 1.5, 2]
+    scale_search = [1]  # [.5, 1, 1.5, 2]
     scale_search = scale_search[0:process_speed]
 
     params['scale_search'] = scale_search
@@ -76,6 +76,7 @@ if __name__ == '__main__':
         if i % frame_rate_ratio == 0:
 
             input_image = cv2.cvtColor(orig_image, cv2.COLOR_RGB2BGR)
+            input_image = cv2.resize(input_image, (640, 360))
 
             tic = time.time()
 

@@ -115,20 +115,34 @@ if __name__ == '__main__':
             if not os.path.exists(out_dirname):
                 os.makedirs(out_dirname, exist_ok=True)
 
-            frames = mmcv.VideoReader(video)
-
             with open("videos_file.txt", "w") as f:
                 f.write(video + "\n")
                 f.close()
             video_info = {}
-            for j, frame in enumerate(frames):
-                height, width = frame.shape[:2]
-                frame_bgr = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            cam = cv2.VideoCapture(video)
+            input_fps = cam.get(cv2.CAP_PROP_FPS)
+            ret_val, orig_image = cam.read()
+            height, width = orig_image.shape[:2]
+            video_length = int(cam.get(cv2.CAP_PROP_FRAME_COUNT))
 
-                body_parts, all_peaks, subset, candidate = extract_parts(frame_bgr, params, model, model_params)
+            #
 
-                #canvas = draw(frame, all_peaks, subset, candidate)
+            scale_search = [1]  # [.5, 1, 1.5, 2]
 
+            params['scale_search'] = scale_search
+
+            j = 0  # default is 0
+            while (cam.isOpened()) and ret_val is True:
+                tic = time.time()
+                input_image = cv2.cvtColor(orig_image, cv2.COLOR_RGB2BGR)
+                input_image = cv2.resize(input_image, (640, 360))
+                draw_image = input_image.copy()[:, :, ::-1]
+                tic_cvclars = time.time()
+                # generate image with body parts
+                body_parts, all_peaks, subset, candidate = extract_parts(input_image, params, model, model_params)
+                tic_scekp = time.time()
+                canvas = draw(draw_image, all_peaks, subset, candidate) # From orig_image to draw_image
+                #print('Processing frame: ', j)
                 frame_info = {}
                 for k, person in enumerate(subset):
                     frame_info["person_" + str(k).zfill(2)] = {}
@@ -143,14 +157,20 @@ if __name__ == '__main__':
                         x = int(candidate[point.astype(int), 0])
                         y = int(candidate[point.astype(int), 1])
                         prob = candidate[point.astype(int), 2]
-                        frame_info["person_" + str(k).zfill(2)][label_to_keypoint[h]] = {"x": round((x + 1) / width, 3), "y": round((y + 1) / height, 3), "prob": round(prob, 3)}
+                        frame_info["person_" + str(k).zfill(2)][label_to_keypoint[h]] = {"x": round((x + 1) / width, 3),
+                                                                                         "y": round((y + 1) / height,3),
+                                                                                         "prob": round(prob, 3)}
 
                 video_info["frame_" + str(j).zfill(5)] = frame_info
+                toc = time.time()
+                total = toc - tic
+                print("Processing frame %d, processing time is %.5f, time rate of convert to rgb and resize  %.3f percent, source code to extract keypoints %.3f percent, write to dict %.3f percent" % (j, total, ((tic_cvclars - tic) * 100. / total), ((tic_scekp - tic_cvclars) * 100. / total), (toc - tic_scekp) * 100. / total))
+                j += 1
                 #print(video_info)
-#
-                #with open(os.path.join(out_dirname, json_filename), "w+") as f:
+                #
+                # with open(os.path.join(out_dirname, json_filename), "w+") as f:
                 #    json.dump(video_info, f, indent=4)
-#
+                #
                 #cv2.imshow("canvas", canvas)
                 #cv2.waitKey(2000)
                 #cv2.destroyWindow("canvas")
