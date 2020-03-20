@@ -10,6 +10,8 @@ import numpy as np
 import cv2
 import mmcv
 
+from scipy.optimize import linear_sum_assignment
+
 from processing import extract_parts, draw
 from config_reader import config_reader
 from model.cmu_model import get_testing_model
@@ -76,6 +78,8 @@ if __name__ == '__main__':
     label_to_keypoint = {v: k for k, v in keypoint_to_label.items()}
     keras_weights_file = args.model
 
+    check_id_classes = ["talking", "transferring_object"]
+
     model = get_testing_model()
     model.load_weights(keras_weights_file)
 
@@ -101,11 +105,11 @@ if __name__ == '__main__':
                 start_index = videos_list.index(content[0])
 
                 f.close()
-        #print(start_index)
+        print(start_index)
         for i in tqdm(range(start_index, len(videos_list))):
             video = videos_list[i]
-
-            json_filename = os.path.basename(video).split(".")[0] + ".json"
+            video_class = os.path.basename(video).split(".")[0].lower()
+            json_filename = video_class + ".json"
 
             dirname_compose = list(filter(None, os.path.dirname(video).split(os.sep)))
             relative_dirname = os.path.join(*diff_list(dirname_compose, dataset_dir_compose))
@@ -140,28 +144,90 @@ if __name__ == '__main__':
                 tic_cvclars = time.time()
                 # generate image with body parts
                 body_parts, all_peaks, subset, candidate = extract_parts(input_image, params, model, model_params)
+                #print("body_parts:", body_parts, "all_peaks:", all_peaks, "subset:", subset, "candidate", candidate)
                 tic_scekp = time.time()
-                canvas = draw(draw_image, all_peaks, subset, candidate) # From orig_image to draw_image
+                #canvas = draw(draw_image, all_peaks, subset, candidate) # From orig_image to draw_image
                 #print('Processing frame: ', j)
                 frame_info = {}
-                for k, person in enumerate(subset):
-                    frame_info["person_" + str(k).zfill(2)] = {}
-                    for h, point in enumerate(person):
-                        if h == 18:
-                            break
+                if video_class in check_id_classes:
+                    if len(subset) > 0:
+                        subset = np.array(subset, dtype=np.int32)
+                        #print(subset.shape)
+                        candidate = np.array(candidate, dtype=np.float32)
+                        #print(candidate.shape)
+                        predicted_coords = np.where(subset[:, :18, np.newaxis] > 0, candidate[:, :3][subset[:, :18]], -1 * np.ones_like(subset[:, :18])[:, :, np.newaxis])
+                        predicted_coords[:, :, :2] = np.where(predicted_coords[:, :, :2] > 0., (predicted_coords[:, :, :2] + np.array([1])[np.newaxis, np.newaxis, :]) / np.array([width, height])[np.newaxis, np.newaxis, :], predicted_coords[:, :, :2])
+                        #print("coords:", predicted_coords)
+                        predicted_reid_dict = dict(zip(range(len(list(predicted_coords))), list(predicted_coords)))
+                        #print(predicted_reid_dict)
+                        if j == 0:
+                            previous_reid_dict = predicted_reid_dict
+                            active_ids = list(range(len(predicted_reid_dict.keys())))
+                            num_id = len(predicted_reid_dict.keys())
+                            col_to_id = dict(zip(range(num_id), active_ids))
+                        else:
+                            dist_matrix = np.zeros(shape=[len(predicted_reid_dict.keys()), len(previous_reid_dict.keys())])
+                            for d, d_key in enumerate(predicted_reid_dict.keys()):
+                                for v, v_key in enumerate(previous_reid_dict.keys()):
+                                    sub = np.where(np.logical_and(predicted_reid_dict[d_key][:, :2] > 0., previous_reid_dict[v_key][:, :2] > 0), (100 * predicted_reid_dict[d][:, :2] - 100 * previous_reid_dict[v][:, :2]), np.zeros_like(predicted_reid_dict[d][:, :2]))
+                                    sqr = np.sum(np.square(sub), axis=-1, keepdims=False)
+                                    dist = np.mean(np.sqrt(sqr))
+                                    dist_matrix[d, v] = dist
+                            print("dist matrix", dist_matrix)
+                            row_ind, col_ind = linear_sum_assignment(dist_matrix)
 
-                        if point == -1.:
-                            frame_info["person_" + str(k).zfill(2)][label_to_keypoint[h]] = {"x": 0., "y": 0., "prob": 0.}
-                            continue
+                            row_ind = list(row_ind)
+                            col_ind = list(col_ind)
+                            match = dict(zip(row_ind, col_ind))
+                            row_to_id = {k: col_to_id[v] for k, v in match.items()}
 
-                        x = int(candidate[point.astype(int), 0])
-                        y = int(candidate[point.astype(int), 1])
-                        prob = candidate[point.astype(int), 2]
-                        frame_info["person_" + str(k).zfill(2)][label_to_keypoint[h]] = {"x": round((x + 1) / width, 3),
-                                                                                         "y": round((y + 1) / height,3),
-                                                                                         "prob": round(prob, 3)}
+                            if dist_matrix.shape[0] == dist_matrix.shape[1]:
+                                predicted_reid_dict = {row_to_id[k]: v for k, v in predicted_reid_dict.items()}
+                                previous_reid_dict = predicted_reid_dict
+                                col_to_id = row_to_id
+                            elif dist_matrix.shape[0] < dist_matrix.shape[1]:
+                                predicted_reid_dict = {row_to_id[k]: v for k, v in predicted_reid_dict.items()}
+                                miss_cols = list(filter(lambda l: l not in col_ind, list(range(dist_matrix.shape[1]))))
+                                miss_ids = [col_to_id[col] for col in miss_cols]
+                                active_ids = filter(lambda l: l not in miss_ids, active_ids)
+                                previous_reid_dict = predicted_reid_dict
+                                col_to_id = row_to_id
+                            else:
+                                miss_rows = list(filter(lambda l: l not in row_ind, list(range(dist_matrix.shape[0]))))
+                                for m, row in enumerate(miss_rows):
+                                    row_to_id[row] = num_id + m
+                                active_ids = active_ids + list(range(num_id, num_id + len(miss_rows)))
+                                num_id += len(miss_rows)
+                                predicted_reid_dict = {row_to_id[k]: v for k, v in predicted_reid_dict.items()}
+                                previous_reid_dict = predicted_reid_dict
+                                col_to_id = row_to_id
+                        for k in predicted_reid_dict.keys():
+                            frame_info["person_" + str(k).zfill(2)] = {}
 
-                video_info["frame_" + str(j).zfill(5)] = frame_info
+
+
+                    else:
+                        continue
+
+
+                else:
+                    for k, person in enumerate(subset):
+                        frame_info["person_" + str(k).zfill(2)] = {}
+                        for h, point in enumerate(person):
+                            if h == 18:
+                                break
+                            if point == -1.:
+                                frame_info["person_" + str(k).zfill(2)][label_to_keypoint[h]] = {"x": -1.0, "y": -1.0, "prob": -1.0}
+                                continue
+                            x = int(candidate[point.astype(int), 0])
+                            y = int(candidate[point.astype(int), 1])
+                            prob = candidate[point.astype(int), 2]
+                            frame_info["person_" + str(k).zfill(2)][label_to_keypoint[h]] = {"x": round((x + 1) / width, 3),
+                                                                                             "y": round((y + 1) / height,3),
+                                                                                             "prob": round(prob, 3)}
+
+                npart, dpart = str(round((j / input_fps), 3)).split(".")
+                video_info[npart.zfill(3) + ":" + dpart.zfill(3)] = frame_info
                 toc = time.time()
                 total = toc - tic
                 print("Processing frame %d, processing time is %.5f, time rate of convert to rgb and resize  %.3f percent, source code to extract keypoints %.3f percent, write to dict %.3f percent" % (j, total, ((tic_cvclars - tic) * 100. / total), ((tic_scekp - tic_cvclars) * 100. / total), (toc - tic_scekp) * 100. / total))
@@ -239,7 +305,7 @@ if __name__ == '__main__':
                             break
 
                         if point == -1.:
-                            frame_info["person_" + str(k).zfill(2)][label_to_keypoint[h]] = {"x": 0., "y": 0., "prob": 0.}
+                            frame_info["person_" + str(k).zfill(2)][label_to_keypoint[h]] = {"x": -1.0, "y": -1.0, "prob": -1.0}
                             continue
 
                         x = int(candidate[point.astype(int), 0])
