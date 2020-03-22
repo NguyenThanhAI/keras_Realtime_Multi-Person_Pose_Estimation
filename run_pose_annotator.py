@@ -2,6 +2,7 @@ import os
 import argparse
 import json
 import time
+import math
 
 from tqdm import tqdm
 
@@ -15,6 +16,7 @@ from scipy.optimize import linear_sum_assignment
 from processing import extract_parts, draw
 from config_reader import config_reader
 from model.cmu_model import get_testing_model
+import util
 
 
 def get_args():
@@ -24,6 +26,10 @@ def get_args():
     parser.add_argument("--output_dir", type=str, default=r"F:\MMAct_annotator", help="Path to save json files")
     parser.add_argument('--model', type=str, default='model/keras/model.h5', help='path to the weights file')
     parser.add_argument("--run_format", type=str, choices=("videos", "images"), default="videos")
+    parser.add_argument("--is_save_video", type=bool, default=False)
+    parser.add_argument("--video_save_dir", type=str, default=r"F:\MMAct_save_videos")
+    parser.add_argument("--width", type=int, default=640)
+    parser.add_argument("--height", type=int, default=360)
 
     args  = parser.parse_args()
 
@@ -66,6 +72,58 @@ def enumerate_videos_folder(args):
     #print(videos_dict)
     return videos_dict
 
+
+def draw_canvas_with_info(input_image, all_peaks, subset, candidate, resize_fac=3):
+    canvas = input_image.copy()
+    height, width = canvas.shape[:2]
+
+    subset_array = np.array(subset, dtype=np.int32)
+    candidate_array = np.array(candidate, dtype=np.float32)
+    persons = np.where(subset_array[:, :18, np.newaxis] > 0, candidate_array[:, :3][subset_array[:, :18]], -1. * np.ones_like(subset_array[:, :18])[:, :, np.newaxis])
+    persons[:, :, :2] = np.where(persons[:, :, :2] > 0, persons[:, :, :2] * resize_fac, persons[:, :, :2])
+    persons[:, :, :2] = np.where(persons[:, :, :2] > 0, (persons[:, :, :2] + np.array([1])[np.newaxis, np.newaxis, :]) / np.array([width, height])[np.newaxis, np.newaxis, :], persons[:, :, :2])
+    xy_min = np.min(persons[:, :, :2], axis=1, keepdims=False)
+    xy_max = np.max(persons[:, :, :2], axis=1, keepdims=False)
+
+    wh = (xy_max - xy_min) * 100.
+
+    persons = persons.tolist()
+
+    for i, person in enumerate(persons):
+        w, h = wh[i]
+        for j, point in enumerate(person):
+            x, y, prob = point
+            cv2.circle(canvas, (int(x * width), int(y * height)), radius=1, color=util.colors[j], thickness=-1)
+            cv2.putText(canvas,
+                        text="x: " + str(round(x, 3)) + " y: " + str(round(y, 3)) + " prob: " + str(round(prob, 3)), org=(int(x * width) + 3, int(y * height) - 3),
+                        fontFace=cv2.FONT_HERSHEY_COMPLEX,
+                        fontScale=0.27,
+                        color=util.colors[j],
+                        thickness=1)
+
+    stickwidth = 4
+
+    for i in range(17):
+        for s in subset:
+            index = s[np.array(util.limbSeq[i]) - 1]
+            if -1 in index:
+                continue
+            cur_canvas = canvas.copy()
+            y = candidate[index.astype(int), 0]
+            x = candidate[index.astype(int), 1]
+            # print("i:", i, "np.array(util.limbSeq[i])-1:", np.array(util.limbSeq[i]) - 1, "index:", index, "y:", y, "x:", x)
+            m_x = np.mean(x)
+            m_y = np.mean(y)
+            length = ((x[0] - x[1]) ** 2 + (y[0] - y[1]) ** 2) ** 0.5
+            angle = math.degrees(math.atan2(x[0] - x[1], y[0] - y[1]))
+            polygon = cv2.ellipse2Poly((int(m_y * resize_fac), int(m_x * resize_fac)),
+                                       (int(length * resize_fac / 2), stickwidth), int(angle), 0, 360, 1)
+            cv2.fillConvexPoly(cur_canvas, polygon, util.colors[i])
+            canvas = cv2.addWeighted(canvas, 0.4, cur_canvas, 0.6, 0)
+            # cv2.imshow("canvas", canvas)
+            # cv2.waitKey(0)
+
+    return canvas
 
 if __name__ == '__main__':
 
@@ -119,6 +177,7 @@ if __name__ == '__main__':
             if not os.path.exists(out_dirname):
                 os.makedirs(out_dirname, exist_ok=True)
 
+
             with open("videos_file.txt", "w") as f:
                 f.write(video + "\n")
                 f.close()
@@ -128,6 +187,16 @@ if __name__ == '__main__':
             ret_val, orig_image = cam.read()
             height, width = orig_image.shape[:2]
             video_length = int(cam.get(cv2.CAP_PROP_FRAME_COUNT))
+
+            if args.is_save_video:
+                out_video_filename = os.path.basename(video).split(".")[0] + ".avi"
+                out_video_dirname = os.path.join(args.video_save_dir, relative_dirname)
+
+                if not os.path.exists(out_video_dirname):
+                    os.makedirs(out_video_dirname, exist_ok=True)
+
+                out_video = cv2.VideoWriter(os.path.join(out_video_dirname, out_video_filename),
+                                            cv2.VideoWriter_fourcc(*'DIVX'), input_fps, (width, height))
 
             #
 
@@ -139,7 +208,7 @@ if __name__ == '__main__':
             while (cam.isOpened()) and ret_val is True:
                 tic = time.time()
                 input_image = cv2.cvtColor(orig_image, cv2.COLOR_RGB2BGR)
-                input_image = cv2.resize(input_image, (640, 360))
+                input_image = cv2.resize(input_image, (args.width, args.height))
                 draw_image = input_image.copy()[:, :, ::-1]
                 tic_cvclars = time.time()
                 # generate image with body parts
@@ -147,6 +216,12 @@ if __name__ == '__main__':
                 #print("body_parts:", body_parts, "all_peaks:", all_peaks, "subset:", subset, "candidate", candidate)
                 tic_scekp = time.time()
                 #canvas = draw(draw_image, all_peaks, subset, candidate) # From orig_image to draw_image
+                if args.is_save_video:
+                    #print("Visualize")
+                    canvas = draw_canvas_with_info(orig_image, all_peaks, subset, candidate, resize_fac=int(width / args.width))
+                    out_video.write(canvas)
+                    cv2.imshow("canvas", canvas)
+                    cv2.waitKey(1000)
                 #print('Processing frame: ', j)
                 frame_info = {}
                 if video_class in check_id_classes:
@@ -156,7 +231,7 @@ if __name__ == '__main__':
                         candidate = np.array(candidate, dtype=np.float32)
                         #print(candidate.shape)
                         predicted_coords = np.where(subset[:, :18, np.newaxis] > 0, candidate[:, :3][subset[:, :18]], -1 * np.ones_like(subset[:, :18])[:, :, np.newaxis])
-                        predicted_coords[:, :, :2] = np.where(predicted_coords[:, :, :2] > 0., (predicted_coords[:, :, :2] + np.array([1])[np.newaxis, np.newaxis, :]) / np.array([width, height])[np.newaxis, np.newaxis, :], predicted_coords[:, :, :2])
+                        predicted_coords[:, :, :2] = np.where(predicted_coords[:, :, :2] > 0., (predicted_coords[:, :, :2] + np.array([1])[np.newaxis, np.newaxis, :]) / np.array([args.width, args.height])[np.newaxis, np.newaxis, :], predicted_coords[:, :, :2])
                         #print("coords:", predicted_coords)
                         predicted_reid_dict = dict(zip(range(len(list(predicted_coords))), list(predicted_coords)))
                         #print(predicted_reid_dict)
@@ -241,7 +316,9 @@ if __name__ == '__main__':
                 #cv2.imshow("canvas", canvas)
                 #cv2.waitKey(2000)
                 #cv2.destroyWindow("canvas")
-
+            if args.is_save_video:
+                out_video.release()
+                #print("Save video with info")
             with open(os.path.join(out_dirname, json_filename), "w+") as f:
                 json.dump(video_info, f, indent=4)
 
