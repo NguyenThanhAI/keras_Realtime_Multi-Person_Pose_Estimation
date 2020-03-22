@@ -20,8 +20,8 @@ from model.cmu_model import get_testing_model
 def get_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--dataset_dir", type=str, default=r"D:\MMAct\videos", help="Path to dataset")
-    parser.add_argument("--output_dir", type=str, default=r"D:\MMAct_annotator", help="Path to save json files")
+    parser.add_argument("--dataset_dir", type=str, default=r"F:\MMAct\videos", help="Path to dataset")
+    parser.add_argument("--output_dir", type=str, default=r"F:\MMAct_annotator", help="Path to save json files")
     parser.add_argument('--model', type=str, default='model/keras/model.h5', help='path to the weights file')
     parser.add_argument("--run_format", type=str, choices=("videos", "images"), default="videos")
 
@@ -173,7 +173,7 @@ if __name__ == '__main__':
                                     sqr = np.sum(np.square(sub), axis=-1, keepdims=False)
                                     dist = np.mean(np.sqrt(sqr))
                                     dist_matrix[d, v] = dist
-                            print("dist matrix", dist_matrix)
+                            #print("dist matrix", dist_matrix)
                             row_ind, col_ind = linear_sum_assignment(dist_matrix)
 
                             row_ind = list(row_ind)
@@ -202,8 +202,8 @@ if __name__ == '__main__':
                                 previous_reid_dict = predicted_reid_dict
                                 col_to_id = row_to_id
                         for k in predicted_reid_dict.keys():
-                            frame_info["person_" + str(k).zfill(2)] = {}
-
+                            frame_info["person_" + str(k).zfill(2)] = {k: v for k, v in zip(list(map(lambda x: label_to_keypoint[x], list(range(predicted_reid_dict[k].shape[0])))), list(map(lambda x: dict(zip(["x", "y", "prob"], list(map(lambda y: round(y, 3), x)))), predicted_reid_dict[k].tolist())))}
+                            #print(type(predicted_reid_dict[k].tolist()[0]), list(map(lambda x: dict(zip(["x", "y", "z"], x)), predicted_reid_dict[k].tolist())))
 
 
                     else:
@@ -314,7 +314,7 @@ if __name__ == '__main__':
                         frame_info["person_" + str(k).zfill(2)][label_to_keypoint[h]] = {"x": round((x + 1) / width, 3), "y": round((y + 1) / height, 3), "prob": round(prob, 3)}
 
                 video_info["frame_" + str(j).zfill(5)] = frame_info
-                #print(video_info)
+                print(video_info)
 #
                 #cv2.imshow("canvas", canvas)
                 #cv2.waitKey(2000)
