@@ -22,8 +22,8 @@ import util
 def get_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--dataset_dir", type=str, default=r"F:\MMAct\videos", help="Path to dataset")
-    parser.add_argument("--output_dir", type=str, default=r"F:\MMAct_annotator", help="Path to save json files")
+    parser.add_argument("--dataset_dir", type=str, default=r"D:\MMAct\videos", help="Path to dataset")
+    parser.add_argument("--output_dir", type=str, default=r"D:\MMAct_annotator", help="Path to save json files")
     parser.add_argument('--model', type=str, default='model/keras/model.h5', help='path to the weights file')
     parser.add_argument("--run_format", type=str, choices=("videos", "images"), default="videos")
     parser.add_argument("--is_save_video", type=bool, default=False)
@@ -234,6 +234,7 @@ if __name__ == '__main__':
                         predicted_coords[:, :, :2] = np.where(predicted_coords[:, :, :2] > 0., (predicted_coords[:, :, :2] + np.array([1])[np.newaxis, np.newaxis, :]) / np.array([args.width, args.height])[np.newaxis, np.newaxis, :], predicted_coords[:, :, :2])
                         #print("coords:", predicted_coords)
                         predicted_reid_dict = dict(zip(range(len(list(predicted_coords))), list(predicted_coords)))
+                        #print("First predicted_reid_dict", predicted_reid_dict)
                         #print(predicted_reid_dict)
                         if j == 0:
                             previous_reid_dict = predicted_reid_dict
@@ -243,24 +244,35 @@ if __name__ == '__main__':
                         else:
                             dist_matrix = np.zeros(shape=[len(predicted_reid_dict.keys()), len(previous_reid_dict.keys())])
                             for d, d_key in enumerate(predicted_reid_dict.keys()):
+                                #print("d, d_key", d, d_key)
                                 for v, v_key in enumerate(previous_reid_dict.keys()):
-                                    sub = np.where(np.logical_and(predicted_reid_dict[d_key][:, :2] > 0., previous_reid_dict[v_key][:, :2] > 0), (100 * predicted_reid_dict[d][:, :2] - 100 * previous_reid_dict[v][:, :2]), np.zeros_like(predicted_reid_dict[d][:, :2]))
+                                    #print("v, v_key", v, v_key)
+                                    sub = np.where(np.logical_and(predicted_reid_dict[d_key][:, :2] > 0., previous_reid_dict[v_key][:, :2] > 0), (100 * predicted_reid_dict[d_key][:, :2] - 100 * previous_reid_dict[v_key][:, :2]), np.zeros_like(predicted_reid_dict[d][:, :2])) # Huhu, miss dkey->d, v_key->v and now fixed
                                     sqr = np.sum(np.square(sub), axis=-1, keepdims=False)
                                     dist = np.mean(np.sqrt(sqr))
-                                    dist_matrix[d, v] = dist
+                                    #print("d, v, d_key, v_key", d, v, d_key, v_key, dist)
+                                    dist_matrix[d, v] = dist # d -> d_key, v -> v_key
                             #print("dist matrix", dist_matrix)
                             row_ind, col_ind = linear_sum_assignment(dist_matrix)
 
                             row_ind = list(row_ind)
                             col_ind = list(col_ind)
                             match = dict(zip(row_ind, col_ind))
+                            #print("match row to col ind", match)
                             row_to_id = {k: col_to_id[v] for k, v in match.items()}
+                            #print("row index to id", row_to_id)
 
                             if dist_matrix.shape[0] == dist_matrix.shape[1]:
+                                #print("Case 1")
                                 predicted_reid_dict = {row_to_id[k]: v for k, v in predicted_reid_dict.items()}
                                 previous_reid_dict = predicted_reid_dict
-                                col_to_id = row_to_id
+                                col_to_id = row_to_id # It's wrong if not dist_matrix[d, v] = dist instead of dist_matrix[d_key, v_key] = dist
+                                #col_to_id = dict(zip(range(dist_matrix.shape[0]), sorted(predicted_reid_dict.keys())))
+                                #sorted(previous_reid_dict.keys())
+                                #previous_reid_dict = {previous_reid_dict[k] for k in sorted(previous_reid_dict.keys())}
+                                #print("col_to_id", col_to_id)
                             elif dist_matrix.shape[0] < dist_matrix.shape[1]:
+                                #print("Case 2")
                                 predicted_reid_dict = {row_to_id[k]: v for k, v in predicted_reid_dict.items()}
                                 miss_cols = list(filter(lambda l: l not in col_ind, list(range(dist_matrix.shape[1]))))
                                 miss_ids = [col_to_id[col] for col in miss_cols]
@@ -268,6 +280,7 @@ if __name__ == '__main__':
                                 previous_reid_dict = predicted_reid_dict
                                 col_to_id = row_to_id
                             else:
+                                #print("Case 3")
                                 miss_rows = list(filter(lambda l: l not in row_ind, list(range(dist_matrix.shape[0]))))
                                 for m, row in enumerate(miss_rows):
                                     row_to_id[row] = num_id + m
@@ -301,7 +314,7 @@ if __name__ == '__main__':
                                                                                              "y": round((y + 1) / height,3),
                                                                                              "prob": round(prob, 3)}
 
-                npart, dpart = str(round((j / input_fps), 3)).split(".")
+                npart, dpart = str(format((j / input_fps), ".3f")).split(".")
                 video_info[npart.zfill(3) + ":" + dpart.zfill(3)] = frame_info
                 toc = time.time()
                 total = toc - tic
