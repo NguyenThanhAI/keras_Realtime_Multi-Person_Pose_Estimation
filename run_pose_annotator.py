@@ -293,8 +293,8 @@ if __name__ == '__main__':
                             frame_info["person_" + str(k).zfill(2)] = {k: v for k, v in zip(list(map(lambda x: label_to_keypoint[x], list(range(predicted_reid_dict[k].shape[0])))), list(map(lambda x: dict(zip(["x", "y", "prob"], list(map(lambda y: round(y, 3), x)))), predicted_reid_dict[k].tolist())))}
                             #print(type(predicted_reid_dict[k].tolist()[0]), list(map(lambda x: dict(zip(["x", "y", "z"], x)), predicted_reid_dict[k].tolist())))
 
-                    else:
-                        continue
+                    #else:
+                    #    continue
 
                 else:
                     for k, person in enumerate(subset):
