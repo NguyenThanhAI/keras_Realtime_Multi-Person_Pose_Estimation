@@ -300,7 +300,7 @@ if __name__ == '__main__':
                 video_info[npart.zfill(3) + ":" + dpart.zfill(3)] = frame_info
                 toc = time.time()
                 total = toc - tic
-                print("Processing frame %d, processing time is %.5f, time rate of convert to rgb and resize  %.3f percent, source code to extract keypoints %.3f percent, write to dict %.3f percent" % (j, total, ((tic_cvclars - tic) * 100. / total), ((tic_scekp - tic_cvclars) * 100. / total), (toc - tic_scekp) * 100. / total))
+                #print("Processing frame %d, processing time is %.5f, time rate of convert to rgb and resize  %.3f percent, source code to extract keypoints %.3f percent, write to dict %.3f percent" % (j, total, ((tic_cvclars - tic) * 100. / total), ((tic_scekp - tic_cvclars) * 100. / total), (toc - tic_scekp) * 100. / total))
             j += 1
             ret_val, orig_image = cam.read()
             #print(video_info)
